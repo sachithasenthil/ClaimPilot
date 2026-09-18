@@ -1,0 +1,2 @@
+import {useState} from "react"; import {request} from "../lib/api";
+export function PolicyUpload({onUploaded}:{onUploaded:(id:number)=>void}){const [message,setMessage]=useState("");return <section><h2>1. Policy upload</h2><input type="file" accept="application/pdf" onChange={async e=>{const f=e.target.files?.[0];if(!f)return;const body=new FormData();body.append("file",f);const r=await request("/policies/upload",{method:"POST",body});setMessage(`Loaded ${r.page_count} pages`);onUploaded(Number(r.id));}}/><p>{message}</p></section>}

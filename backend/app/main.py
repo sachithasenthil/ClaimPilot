@@ -39,6 +39,12 @@ async def upload_policy(file: UploadFile = File(...)) -> UploadResponse:
     except Exception as exc:
         raise HTTPException(400, "A readable PDF is required") from exc
     with SessionLocal.begin() as db:
+        # This scoped demo has one active policy. Replace its review workspace so
+        # the clauses endpoint cannot leak clauses from an earlier upload.
+        db.query(VerifiedRule).delete(synchronize_session=False)
+        db.query(CandidateRule).delete(synchronize_session=False)
+        db.query(PolicyClause).delete(synchronize_session=False)
+        db.query(SourceDocument).filter(SourceDocument.kind == "policy").delete(synchronize_session=False)
         document = SourceDocument(kind="policy", filename=file.filename or "policy.pdf",
                                   sha256=hashlib.sha256(data).hexdigest(), page_count=page_count)
         db.add(document); db.flush()
@@ -50,7 +56,9 @@ async def upload_policy(file: UploadFile = File(...)) -> UploadResponse:
 @app.get("/policies/{policy_id}/clauses", response_model=list[PolicyClauseOut])
 def list_clauses(policy_id: int) -> list[PolicyClause]:
     with SessionLocal() as db:
-        # The hackathon prototype has one active policy; policy_id names its uploaded source.
+        policy = db.get(SourceDocument, policy_id)
+        if not policy or policy.kind != "policy":
+            raise HTTPException(404, "Active policy not found; upload the policy again")
         return list(db.query(PolicyClause).order_by(PolicyClause.source_page).all())
 
 
